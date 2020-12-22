@@ -1,2 +1,2 @@
-# serial
-PHP library to communicate with serial port of your Rpi.
+# Rasphpi
+PHP library to access to communicate with interfaces from your Rpi.
