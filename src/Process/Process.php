@@ -1,58 +1,64 @@
 <?php
 
+/*
+ * This file is part of the Rasphpi project.
+ *
+ * (c) Franck Matsos <franck@matsos.fr>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace Rasphpi\Process;
 
-use Rasphpi\Exception\InterfaceNotOpenException;
+use Rasphpi\Exception\PortNotOpenException;
+use Rasphpi\Process\Pipe\PipeInterface;
+use Rasphpi\Process\Pipe\ReadPipe;
+use Rasphpi\Process\Pipe\StaticPipeFactory;
+use Rasphpi\Process\Pipe\WritePipe;
 
 final class Process
 {
-    const DESCRIPTOR_TYPE_PIPE = 'pipe';
-    const DESCRIPTOR_TYPE_FILE = 'file';
-    const DESCRIPTOR_READ = 'r';
-    const DESCRIPTOR_WRITE = 'w';
+    public array $stdin = ReadPipe::METHOD;
+    public array $stdout = WritePipe::METHOD;
+    public array $stderr = WritePipe::METHOD;
 
     private array $pipes;
     private mixed $resource;
 
-    public function __construct(
-        public array $stdin = [self::DESCRIPTOR_TYPE_PIPE => self::DESCRIPTOR_READ],
-        public array $stdout = [self::DESCRIPTOR_TYPE_PIPE => self::DESCRIPTOR_WRITE],
-        public array $stderr = [self::DESCRIPTOR_TYPE_PIPE => self::DESCRIPTOR_WRITE]
-    ) {}
-
+    /** @throws \InvalidArgumentException */
     public function open(string $command): bool
     {
         $pipes = [];
         $descriptor = [$this->stdin, $this->stdout, $this->stderr];
-
         $resource = proc_open($command, $descriptor, $pipes);
 
-        if (is_resource($resource)) {
-            $this->resource = $resource;
-
-            foreach ($descriptor as $index => $pipe) {
-                $descriptorType = array_keys($pipe)[0];
-                $option = array_values($pipe)[0];
-
-                /** @todo Implement 'file' type */
-                $this->pipes[] = match($descriptorType) {
-                    self::DESCRIPTOR_TYPE_PIPE =>  StaticPipeFactory::create($pipe, $option)
-                };
-            }
-
-            return true;
+        if (!is_resource($resource)) {
+            return false;
         }
 
-        return false;
+        $this->resource = $resource;
+
+        foreach ($descriptor as $index => $pipe) {
+            $descriptorType = array_keys($pipe)[0];
+            $option = array_values($pipe)[0];
+
+            /** @todo Implement 'file' type */
+            $this->pipes[] = match($descriptorType) {
+                PipeInterface::TYPE =>  StaticPipeFactory::create($pipe, $option)
+            };
+        }
+
+        return true;
     }
 
-    /** @throws InterfaceNotOpenException */
+    /** @throws PortNotOpenException */
     public function close(): int
     {
-        if (false === $this->isOpen()) {
-            throw new InterfaceNotOpenException();
+        if (!$this->isOpen()) {
+            throw new PortNotOpenException();
         }
 
         /** @var PipeInterface $pipe */
